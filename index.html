@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <title>VND 가계부</title>
+
+  <!-- PWA / iOS 홈 화면 설정 -->
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <meta name="theme-color" content="#2f6fed" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="VND가계부" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header id="app-header">
+      <h1>VND 가계부</h1>
+      <p id="rate-indicator" class="rate-indicator">환율 확인 중...</p>
+    </header>
+
+    <main id="screen-root" aria-live="polite"></main>
+
+    <nav id="bottom-nav" class="bottom-nav">
+      <button type="button" data-screen="input" class="nav-btn">
+        <span class="nav-icon">＋</span>
+        <span class="nav-label">입력</span>
+      </button>
+      <button type="button" data-screen="list" class="nav-btn">
+        <span class="nav-icon">≡</span>
+        <span class="nav-label">목록</span>
+      </button>
+      <button type="button" data-screen="summary" class="nav-btn">
+        <span class="nav-icon">Σ</span>
+        <span class="nav-label">요약</span>
+      </button>
+    </nav>
+  </div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
