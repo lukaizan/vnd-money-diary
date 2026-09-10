@@ -1,16 +1,19 @@
 import { categoriesForType } from "../lib/categories.js";
+import { CURRENCIES, currencySymbol } from "../lib/currencies.js";
 import { expenseRepository } from "../lib/storage.js";
 import { getExchangeRate } from "../lib/exchangeRate.js";
-import { formatKRW, formatVND, todayISODate } from "../lib/format.js";
+import { formatByCurrency, formatKRW, todayISODate } from "../lib/format.js";
 import { attachThousandsFormatting } from "../lib/numberInput.js";
+
+// 환율 조회가 필요한 통화만 대상 (KRW는 그대로 입력하므로 환율이 필요 없음)
+const RATE_BASED_CURRENCIES = CURRENCIES.map((c) => c.code).filter((code) => code !== "KRW");
 
 export function renderInputScreen(container) {
   let selectedType = "expense"; // 앱을 처음 열었을 때 기본값
   let selectedCategory = categoriesForType(selectedType)[0].id;
   let selectedCurrency = "VND"; // 앱을 처음 열었을 때 기본값
-  let vndAmountValue = 0;
-  let krwAmountValue = 0;
-  let currentRate = null; // { rate, fetchedAt, fromCache }
+  const amountValues = Object.fromEntries(CURRENCIES.map((c) => [c.code, 0]));
+  const rates = {}; // { [currencyCode]: { rate, fetchedAt, fromCache, error? } }
 
   container.innerHTML = `
     <form id="expense-form" class="card">
@@ -26,18 +29,20 @@ export function renderInputScreen(container) {
         <label>결제 금액</label>
 
         <div class="segmented" id="currency-toggle">
-          <button type="button" class="segmented-btn selected" data-currency="VND">VND</button>
-          <button type="button" class="segmented-btn" data-currency="KRW">KRW</button>
+          ${CURRENCIES.map(
+            (c) =>
+              `<button type="button" class="segmented-btn${c.code === selectedCurrency ? " selected" : ""}" data-currency="${c.code}">${c.label}</button>`
+          ).join("")}
         </div>
 
-        <div class="vnd-input-wrap" id="vnd-field">
-          <input id="vnd-amount" type="text" inputmode="numeric" placeholder="0" autocomplete="off" />
-          <span>₫</span>
-        </div>
-        <div class="vnd-input-wrap" id="krw-field" hidden>
-          <input id="krw-amount" type="text" inputmode="numeric" placeholder="0" autocomplete="off" />
-          <span>원</span>
-        </div>
+        ${CURRENCIES.map(
+          (c) => `
+          <div class="vnd-input-wrap" id="amount-field-${c.code}" ${c.code === selectedCurrency ? "" : "hidden"}>
+            <input id="amount-input-${c.code}" type="text" inputmode="numeric" placeholder="0" autocomplete="off" />
+            <span>${c.symbol}</span>
+          </div>
+        `
+        ).join("")}
 
         <div class="krw-preview" id="krw-preview">
           환율 불러오는 중...
@@ -65,15 +70,18 @@ export function renderInputScreen(container) {
 
   const typeToggle = container.querySelector("#type-toggle");
   const currencyToggle = container.querySelector("#currency-toggle");
-  const vndField = container.querySelector("#vnd-field");
-  const krwField = container.querySelector("#krw-field");
-  const vndInput = container.querySelector("#vnd-amount");
-  const krwInput = container.querySelector("#krw-amount");
   const krwPreview = container.querySelector("#krw-preview");
   const dateInput = container.querySelector("#expense-date");
   const memoInput = container.querySelector("#expense-memo");
   const categoryGrid = container.querySelector("#category-grid");
   const form = container.querySelector("#expense-form");
+
+  function amountField(code) {
+    return container.querySelector(`#amount-field-${code}`);
+  }
+  function amountInput(code) {
+    return container.querySelector(`#amount-input-${code}`);
+  }
 
   function renderCategoryGrid() {
     const categories = categoriesForType(selectedType);
@@ -89,31 +97,36 @@ export function renderInputScreen(container) {
   }
 
   function updatePreview() {
-    if (selectedCurrency !== "VND") {
+    if (selectedCurrency === "KRW") {
       krwPreview.hidden = true;
       return;
     }
     krwPreview.hidden = false;
 
-    if (!currentRate) {
-      krwPreview.textContent = "환율 불러오는 중...";
+    const rateInfo = rates[selectedCurrency];
+    if (!rateInfo || !rateInfo.rate) {
+      krwPreview.textContent = rateInfo?.error
+        ? `환율을 가져오지 못했어요: ${rateInfo.error}`
+        : "환율 불러오는 중...";
       return;
     }
-    if (currentRate.error) {
-      krwPreview.innerHTML = `환율을 새로 가져오지 못해 이전 값을 사용해요.<span class="sub">${escapeHtml(currentRate.error)}</span>`;
-    }
-    const krw = vndAmountValue * currentRate.rate;
-    krwPreview.innerHTML = `≈ ${formatKRW(krw)}<span class="sub">1 ₫ = ${currentRate.rate.toFixed(4)}원 · ${formatUpdatedAt(currentRate.fetchedAt)} 기준</span>`;
+
+    const amount = amountValues[selectedCurrency];
+    const krw = amount * rateInfo.rate;
+    const symbol = currencySymbol(selectedCurrency);
+    const warningNote = rateInfo.error
+      ? ` · ⚠️ 갱신 실패, 이전 값 사용`
+      : "";
+    krwPreview.innerHTML = `≈ ${formatKRW(krw)}<span class="sub">1 ${symbol} = ${rateInfo.rate.toFixed(4)}원 · ${formatUpdatedAt(rateInfo.fetchedAt)} 기준${warningNote}</span>`;
   }
 
   renderCategoryGrid();
 
-  attachThousandsFormatting(vndInput, (val) => {
-    vndAmountValue = val;
-    updatePreview();
-  });
-  attachThousandsFormatting(krwInput, (val) => {
-    krwAmountValue = val;
+  CURRENCIES.forEach((c) => {
+    attachThousandsFormatting(amountInput(c.code), (val) => {
+      amountValues[c.code] = val;
+      if (c.code === selectedCurrency) updatePreview();
+    });
   });
 
   typeToggle.addEventListener("click", (e) => {
@@ -130,11 +143,12 @@ export function renderInputScreen(container) {
     selectedCurrency = btn.dataset.currency;
 
     [...currencyToggle.children].forEach((c) => c.classList.toggle("selected", c === btn));
-    vndField.hidden = selectedCurrency !== "VND";
-    krwField.hidden = selectedCurrency !== "KRW";
+    CURRENCIES.forEach((c) => {
+      amountField(c.code).hidden = c.code !== selectedCurrency;
+    });
     updatePreview();
 
-    (selectedCurrency === "VND" ? vndInput : krwInput).focus();
+    amountInput(selectedCurrency).focus();
   });
 
   categoryGrid.addEventListener("click", (e) => {
@@ -148,39 +162,37 @@ export function renderInputScreen(container) {
     e.preventDefault();
 
     const saveBtn = container.querySelector("#save-btn");
+    const amount = amountValues[selectedCurrency];
+
+    if (!amount || amount <= 0) {
+      amountInput(selectedCurrency).focus();
+      return;
+    }
+
     let record;
-
-    if (selectedCurrency === "VND") {
-      if (!vndAmountValue || vndAmountValue <= 0) {
-        vndInput.focus();
-        return;
-      }
-      if (!currentRate) return; // 환율 로딩 전에는 저장 방지
-
-      record = {
-        type: selectedType,
-        date: dateInput.value,
-        category: selectedCategory,
-        inputCurrency: "VND",
-        vndAmount: vndAmountValue,
-        krwAmount: vndAmountValue * currentRate.rate,
-        rate: currentRate.rate,
-        memo: memoInput.value.trim(),
-      };
-    } else {
-      if (!krwAmountValue || krwAmountValue <= 0) {
-        krwInput.focus();
-        return;
-      }
-
+    if (selectedCurrency === "KRW") {
       record = {
         type: selectedType,
         date: dateInput.value,
         category: selectedCategory,
         inputCurrency: "KRW",
-        vndAmount: null,
-        krwAmount: krwAmountValue,
+        amount,
+        krwAmount: amount,
         rate: null,
+        memo: memoInput.value.trim(),
+      };
+    } else {
+      const rateInfo = rates[selectedCurrency];
+      if (!rateInfo || !rateInfo.rate) return; // 환율 로딩 전에는 저장 방지
+
+      record = {
+        type: selectedType,
+        date: dateInput.value,
+        category: selectedCategory,
+        inputCurrency: selectedCurrency,
+        amount,
+        krwAmount: amount * rateInfo.rate,
+        rate: rateInfo.rate,
         memo: memoInput.value.trim(),
       };
     }
@@ -188,38 +200,35 @@ export function renderInputScreen(container) {
     saveBtn.disabled = true;
     await expenseRepository.add(record);
 
-    const savedAmountText = record.inputCurrency === "VND" ? formatVND(record.vndAmount) : formatKRW(record.krwAmount);
-    showToast(`${savedAmountText} 저장했어요`);
+    showToast(`${formatByCurrency(record.amount, record.inputCurrency)} 저장했어요`);
 
     form.reset();
     dateInput.value = todayISODate();
     renderCategoryGrid();
-    vndAmountValue = 0;
-    krwAmountValue = 0;
+    CURRENCIES.forEach((c) => {
+      amountValues[c.code] = 0;
+    });
     updatePreview();
     saveBtn.disabled = false;
   });
 
-  // 환율 불러오기 (캐시가 있으면 즉시, 없으면 API 호출)
-  getExchangeRate()
-    .then((result) => {
-      currentRate = result;
-      updatePreview();
-    })
-    .catch((err) => {
-      krwPreview.textContent = `환율을 가져오지 못했어요: ${err.message}`;
-    });
+  // 환율 불러오기 (캐시가 있으면 즉시, 없으면 API 호출). 통화별로 독립적으로 진행됩니다.
+  RATE_BASED_CURRENCIES.forEach((code) => {
+    getExchangeRate(code)
+      .then((result) => {
+        rates[code] = result;
+        if (code === selectedCurrency) updatePreview();
+      })
+      .catch((err) => {
+        rates[code] = { rate: null, error: err.message };
+        if (code === selectedCurrency) updatePreview();
+      });
+  });
 }
 
 function formatUpdatedAt(timestamp) {
   const d = new Date(timestamp);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
 }
 
 function showToast(message) {

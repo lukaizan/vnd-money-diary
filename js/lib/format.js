@@ -1,9 +1,27 @@
+// 통화별 금액 표시 형식. 항상 "en-US" 로케일로 천 단위 콤마(,)를 사용해서,
+// 입력 화면의 콤마 표시(js/lib/numberInput.js)와 항상 같은 모양이 되도록 합니다.
+export function formatByCurrency(amount, currencyCode) {
+  const formatted = Math.round(amount).toLocaleString("en-US");
+  switch (currencyCode) {
+    case "VND":
+      return `${formatted} ₫`;
+    case "KRW":
+      return `${formatted}원`;
+    case "USD":
+      return `$${formatted}`;
+    case "CNY":
+      return `¥${formatted}`;
+    default:
+      return formatted;
+  }
+}
+
 export function formatVND(amount) {
-  return new Intl.NumberFormat("vi-VN").format(Math.round(amount)) + " ₫";
+  return formatByCurrency(amount, "VND");
 }
 
 export function formatKRW(amount) {
-  return new Intl.NumberFormat("ko-KR").format(Math.round(amount)) + "원";
+  return formatByCurrency(amount, "KRW");
 }
 
 export function todayISODate() {

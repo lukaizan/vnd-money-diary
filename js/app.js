@@ -25,7 +25,7 @@ showScreen("input");
 const rateIndicator = document.getElementById("rate-indicator");
 async function updateHeaderRate() {
   try {
-    const { rate, fromCache, error } = await getExchangeRate();
+    const { rate, fromCache, error } = await getExchangeRate("VND");
     rateIndicator.textContent = error
       ? "환율 갱신 실패 (이전 값 사용 중)"
       : `1 ₫ = ${rate.toFixed(4)}원${fromCache ? " (저장된 값)" : ""}`;

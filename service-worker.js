@@ -8,6 +8,7 @@ const APP_SHELL = [
   "./css/style.css",
   "./js/app.js",
   "./js/lib/categories.js",
+  "./js/lib/currencies.js",
   "./js/lib/format.js",
   "./js/lib/storage.js",
   "./js/lib/exchangeRate.js",

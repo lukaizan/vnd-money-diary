@@ -1,6 +1,6 @@
 import { expenseRepository } from "../lib/storage.js";
 import { categoryLabel } from "../lib/categories.js";
-import { formatKRW, formatVND, formatDateKorean } from "../lib/format.js";
+import { formatKRW, formatByCurrency, formatDateKorean } from "../lib/format.js";
 
 export async function renderListScreen(container) {
   container.innerHTML = `<div class="card" id="list-card"><p class="empty-state">불러오는 중...</p></div>`;
@@ -15,11 +15,12 @@ export async function renderListScreen(container) {
 
   listCard.innerHTML = expenses
     .map((e) => {
-      // 예전에 저장된 내역(inputCurrency/type 없음)은 vndAmount 유무 등으로 값을 추정
-      const inputCurrency = e.inputCurrency ?? (e.vndAmount ? "VND" : "KRW");
       const type = e.type ?? "expense";
+      // KRW로 입력한 내역은 환산이 없으므로 원본 금액을 따로 보여줄 필요가 없음
       const originalAmountHtml =
-        inputCurrency === "VND" ? `<div class="vnd">${formatVND(e.vndAmount)}</div>` : "";
+        e.inputCurrency !== "KRW"
+          ? `<div class="original-amount">${formatByCurrency(e.amount, e.inputCurrency)}</div>`
+          : "";
       const sign = type === "income" ? "+" : "-";
 
       return `
