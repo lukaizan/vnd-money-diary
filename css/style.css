@@ -245,6 +245,30 @@ body {
   cursor: not-allowed;
 }
 
+.btn-secondary {
+  width: 100%;
+  padding: 12px;
+  margin-top: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.edit-banner {
+  background: rgba(47, 111, 237, 0.08);
+  color: var(--color-primary-dark);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
 .toast {
   position: fixed;
   bottom: calc(100px + var(--safe-bottom));
@@ -313,13 +337,28 @@ body {
   color: var(--color-text-muted);
 }
 
+.item-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.edit-btn,
 .delete-btn {
   background: none;
   border: none;
-  color: var(--color-danger);
   font-size: 12px;
   cursor: pointer;
-  padding: 4px 0 0;
+  padding: 0;
+}
+
+.edit-btn {
+  color: var(--color-primary);
+}
+
+.delete-btn {
+  color: var(--color-danger);
 }
 
 .empty-state {

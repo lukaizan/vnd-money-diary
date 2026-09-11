@@ -4,18 +4,25 @@ import { renderSummaryScreen } from "./screens/summaryScreen.js";
 import { mountBottomNav } from "./components/bottomNav.js";
 import { getExchangeRate } from "./lib/exchangeRate.js";
 
-const screens = {
-  input: renderInputScreen,
-  list: renderListScreen,
-  summary: renderSummaryScreen,
-};
-
 const root = document.getElementById("screen-root");
-const nav = mountBottomNav(document.getElementById("bottom-nav"), showScreen);
+const nav = mountBottomNav(document.getElementById("bottom-nav"), (id) => showScreen(id));
 
-function showScreen(id) {
+function showScreen(id, params = {}) {
   root.innerHTML = "";
-  screens[id](root);
+
+  if (id === "list") {
+    renderListScreen(root, {
+      onEdit: (expense) => showScreen("input", { editingExpense: expense }),
+    });
+  } else if (id === "input") {
+    renderInputScreen(root, {
+      editingExpense: params.editingExpense ?? null,
+      onDoneEditing: () => showScreen("list"),
+    });
+  } else {
+    renderSummaryScreen(root);
+  }
+
   nav.setActive(id);
 }
 

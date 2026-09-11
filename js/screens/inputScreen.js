@@ -3,25 +3,37 @@ import { CURRENCIES, currencySymbol } from "../lib/currencies.js";
 import { expenseRepository } from "../lib/storage.js";
 import { getExchangeRate } from "../lib/exchangeRate.js";
 import { formatByCurrency, formatKRW, todayISODate } from "../lib/format.js";
-import { attachThousandsFormatting } from "../lib/numberInput.js";
+import { attachThousandsFormatting, formatThousands } from "../lib/numberInput.js";
 
 // 환율 조회가 필요한 통화만 대상 (KRW는 그대로 입력하므로 환율이 필요 없음)
 const RATE_BASED_CURRENCIES = CURRENCIES.map((c) => c.code).filter((code) => code !== "KRW");
 
-export function renderInputScreen(container) {
-  let selectedType = "expense"; // 앱을 처음 열었을 때 기본값
-  let selectedCategory = categoriesForType(selectedType)[0].id;
-  let selectedCurrency = "VND"; // 앱을 처음 열었을 때 기본값
+/**
+ * @param {HTMLElement} container
+ * @param {{ editingExpense?: object|null, onDoneEditing?: () => void }} [options]
+ *   editingExpense가 있으면 새로 추가하는 대신 그 내역을 수정하는 화면으로 동작합니다.
+ */
+export function renderInputScreen(container, { editingExpense = null, onDoneEditing = null } = {}) {
+  const isEditing = editingExpense !== null;
+
+  let selectedType = editingExpense?.type ?? "expense"; // 앱을 처음 열었을 때 기본값
+  let selectedCategory = editingExpense?.category ?? categoriesForType(selectedType)[0].id;
+  let selectedCurrency = editingExpense?.inputCurrency ?? "VND"; // 앱을 처음 열었을 때 기본값
   const amountValues = Object.fromEntries(CURRENCIES.map((c) => [c.code, 0]));
+  if (isEditing) {
+    amountValues[selectedCurrency] = editingExpense.amount;
+  }
   const rates = {}; // { [currencyCode]: { rate, fetchedAt, fromCache, error? } }
 
   container.innerHTML = `
     <form id="expense-form" class="card">
+      ${isEditing ? `<div class="edit-banner">내역을 수정하고 있어요</div>` : ""}
+
       <div class="field">
         <label>종류</label>
         <div class="segmented" id="type-toggle">
-          <button type="button" class="segmented-btn selected" data-type="expense">지출</button>
-          <button type="button" class="segmented-btn" data-type="income">수입</button>
+          <button type="button" class="segmented-btn${selectedType === "expense" ? " selected" : ""}" data-type="expense">지출</button>
+          <button type="button" class="segmented-btn${selectedType === "income" ? " selected" : ""}" data-type="income">수입</button>
         </div>
       </div>
 
@@ -38,7 +50,8 @@ export function renderInputScreen(container) {
         ${CURRENCIES.map(
           (c) => `
           <div class="vnd-input-wrap" id="amount-field-${c.code}" ${c.code === selectedCurrency ? "" : "hidden"}>
-            <input id="amount-input-${c.code}" type="text" inputmode="numeric" placeholder="0" autocomplete="off" />
+            <input id="amount-input-${c.code}" type="text" inputmode="numeric" placeholder="0" autocomplete="off"
+              value="${isEditing && c.code === selectedCurrency ? formatThousands(editingExpense.amount) : ""}" />
             <span>${c.symbol}</span>
           </div>
         `
@@ -51,7 +64,7 @@ export function renderInputScreen(container) {
 
       <div class="field">
         <label for="expense-date">날짜</label>
-        <input id="expense-date" type="date" value="${todayISODate()}" required />
+        <input id="expense-date" type="date" value="${editingExpense?.date ?? todayISODate()}" required />
       </div>
 
       <div class="field">
@@ -61,10 +74,11 @@ export function renderInputScreen(container) {
 
       <div class="field">
         <label for="expense-memo">메모 (선택)</label>
-        <textarea id="expense-memo" placeholder="예: 반미, 그랩 택시 등"></textarea>
+        <textarea id="expense-memo" placeholder="예: 반미, 그랩 택시 등">${escapeHtml(editingExpense?.memo ?? "")}</textarea>
       </div>
 
-      <button type="submit" class="btn-primary" id="save-btn">저장하기</button>
+      <button type="submit" class="btn-primary" id="save-btn">${isEditing ? "수정 완료" : "저장하기"}</button>
+      ${isEditing ? `<button type="button" class="btn-secondary" id="cancel-edit-btn">취소</button>` : ""}
     </form>
   `;
 
@@ -75,6 +89,7 @@ export function renderInputScreen(container) {
   const memoInput = container.querySelector("#expense-memo");
   const categoryGrid = container.querySelector("#category-grid");
   const form = container.querySelector("#expense-form");
+  const cancelEditBtn = container.querySelector("#cancel-edit-btn");
 
   function amountField(code) {
     return container.querySelector(`#amount-field-${code}`);
@@ -158,6 +173,12 @@ export function renderInputScreen(container) {
     [...categoryGrid.children].forEach((c) => c.classList.toggle("selected", c === btn));
   });
 
+  if (cancelEditBtn) {
+    cancelEditBtn.addEventListener("click", () => {
+      onDoneEditing?.();
+    });
+  }
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
@@ -198,8 +219,15 @@ export function renderInputScreen(container) {
     }
 
     saveBtn.disabled = true;
-    await expenseRepository.add(record);
 
+    if (isEditing) {
+      await expenseRepository.update(editingExpense.id, record);
+      showToast(`${formatByCurrency(record.amount, record.inputCurrency)}로 수정했어요`);
+      onDoneEditing?.();
+      return;
+    }
+
+    await expenseRepository.add(record);
     showToast(`${formatByCurrency(record.amount, record.inputCurrency)} 저장했어요`);
 
     form.reset();
@@ -224,6 +252,12 @@ export function renderInputScreen(container) {
         if (code === selectedCurrency) updatePreview();
       });
   });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 function formatUpdatedAt(timestamp) {

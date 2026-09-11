@@ -103,6 +103,17 @@ class LocalStorageExpenseRepository {
     return record;
   }
 
+  async update(id, updates) {
+    const list = readAll();
+    const index = list.findIndex((e) => e.id === id);
+    if (index === -1) return null;
+
+    const updated = { ...list[index], ...updates, id: list[index].id, createdAt: list[index].createdAt };
+    list[index] = updated;
+    writeAll(list);
+    return updated;
+  }
+
   async remove(id) {
     const list = readAll().filter((e) => e.id !== id);
     writeAll(list);

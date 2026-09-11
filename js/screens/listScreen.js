@@ -2,7 +2,11 @@ import { expenseRepository } from "../lib/storage.js";
 import { categoryLabel } from "../lib/categories.js";
 import { formatKRW, formatByCurrency, formatDateKorean } from "../lib/format.js";
 
-export async function renderListScreen(container) {
+/**
+ * @param {HTMLElement} container
+ * @param {{ onEdit?: (expense: object) => void }} [options]
+ */
+export async function renderListScreen(container, { onEdit = null } = {}) {
   container.innerHTML = `<div class="card" id="list-card"><p class="empty-state">불러오는 중...</p></div>`;
 
   const listCard = container.querySelector("#list-card");
@@ -33,7 +37,10 @@ export async function renderListScreen(container) {
         <div class="amounts ${type}">
           <div class="krw">${sign}${formatKRW(e.krwAmount)}</div>
           ${originalAmountHtml}
-          <button type="button" class="delete-btn" data-id="${e.id}">삭제</button>
+          <div class="item-actions">
+            <button type="button" class="edit-btn" data-id="${e.id}">수정</button>
+            <button type="button" class="delete-btn" data-id="${e.id}">삭제</button>
+          </div>
         </div>
       </div>
     `;
@@ -41,12 +48,20 @@ export async function renderListScreen(container) {
     .join("");
 
   listCard.addEventListener("click", async (evt) => {
-    const btn = evt.target.closest(".delete-btn");
-    if (!btn) return;
-    const id = btn.dataset.id;
-    if (!confirm("이 내역을 삭제할까요?")) return;
-    await expenseRepository.remove(id);
-    renderListScreen(container);
+    const editBtn = evt.target.closest(".edit-btn");
+    if (editBtn) {
+      const expense = expenses.find((e) => e.id === editBtn.dataset.id);
+      if (expense) onEdit?.(expense);
+      return;
+    }
+
+    const deleteBtn = evt.target.closest(".delete-btn");
+    if (deleteBtn) {
+      const id = deleteBtn.dataset.id;
+      if (!confirm("이 내역을 삭제할까요?")) return;
+      await expenseRepository.remove(id);
+      renderListScreen(container, { onEdit });
+    }
   });
 }
 
