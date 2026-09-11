@@ -1,6 +1,7 @@
 import { expenseRepository } from "../lib/storage.js";
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "../lib/categories.js";
 import { formatKRW, currentYearMonth } from "../lib/format.js";
+import { exportExpensesAsCsv } from "../lib/csvExport.js";
 
 export async function renderSummaryScreen(container) {
   container.innerHTML = `<div class="card"><p class="empty-state">불러오는 중...</p></div>`;
@@ -51,7 +52,40 @@ export async function renderSummaryScreen(container) {
       <div class="section-label">카테고리별 수입</div>
       ${renderSubtotalRows(incomeSubtotals, totalIncomeKrw)}
     </div>
+
+    <div class="card">
+      <button type="button" class="btn-secondary" id="export-csv-btn">데이터 내보내기 (CSV)</button>
+    </div>
   `;
+
+  const exportBtn = container.querySelector("#export-csv-btn");
+  exportBtn.addEventListener("click", async () => {
+    exportBtn.disabled = true;
+    const originalLabel = exportBtn.textContent;
+    exportBtn.textContent = "내보내는 중...";
+
+    try {
+      const result = await exportExpensesAsCsv();
+      if (result.count === 0) {
+        showToast("내보낼 내역이 없어요");
+      } else if (result.method !== "cancelled") {
+        showToast(`${result.count}건을 CSV로 내보냈어요`);
+      }
+    } catch (err) {
+      showToast(`내보내기에 실패했어요: ${err.message}`);
+    } finally {
+      exportBtn.disabled = false;
+      exportBtn.textContent = originalLabel;
+    }
+  });
+}
+
+function showToast(message) {
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 1800);
 }
 
 function sumKrw(records) {
