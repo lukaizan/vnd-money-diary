@@ -137,6 +137,7 @@ body {
 
 .field input[type="number"],
 .field input[type="date"],
+.field input[type="text"],
 .field textarea {
   width: 100%;
   padding: 12px;
@@ -436,4 +437,81 @@ body {
 .summary-row .bar-fill {
   height: 100%;
   border-radius: 3px;
+}
+
+/* Budget */
+.budget-item {
+  margin-bottom: 18px;
+}
+
+.budget-item:last-of-type {
+  margin-bottom: 12px;
+}
+
+.budget-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.budget-item-header > span {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.budget-input-wrap {
+  position: relative;
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.budget-input-wrap input {
+  width: 100%;
+  padding: 8px 32px 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: inherit;
+  text-align: right;
+}
+
+.budget-input-wrap span {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.budget-bar-track {
+  height: 8px;
+  background: var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.budget-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--color-primary);
+}
+
+.budget-bar-fill.over-budget {
+  background: var(--color-danger);
+}
+
+.budget-bar-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+.budget-bar-label.over-budget {
+  color: var(--color-danger);
+  font-weight: 600;
 }

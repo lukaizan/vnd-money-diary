@@ -1,7 +1,9 @@
 import { expenseRepository } from "../lib/storage.js";
+import { budgetStorage } from "../lib/budgetStorage.js";
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "../lib/categories.js";
 import { formatKRW, currentYearMonth } from "../lib/format.js";
 import { exportExpensesAsCsv } from "../lib/csvExport.js";
+import { attachThousandsFormatting, formatThousands } from "../lib/numberInput.js";
 
 export async function renderSummaryScreen(container) {
   container.innerHTML = `<div class="card"><p class="empty-state">불러오는 중...</p></div>`;
@@ -10,6 +12,7 @@ export async function renderSummaryScreen(container) {
   const monthRecords = (await expenseRepository.getAll()).filter((e) =>
     e.date.startsWith(yearMonth)
   );
+  const budgets = await budgetStorage.getAll();
 
   // 예전에 저장된 내역(type 없음)은 지출로 취급
   const expenseRecords = monthRecords.filter((e) => (e.type ?? "expense") === "expense");
@@ -21,6 +24,7 @@ export async function renderSummaryScreen(container) {
 
   const expenseSubtotals = subtotalsByCategory(EXPENSE_CATEGORIES, expenseRecords);
   const incomeSubtotals = subtotalsByCategory(INCOME_CATEGORIES, incomeRecords);
+  const spentByCategory = Object.fromEntries(expenseSubtotals.map((s) => [s.id, s.total]));
 
   const [year, month] = yearMonth.split("-");
 
@@ -49,6 +53,12 @@ export async function renderSummaryScreen(container) {
     </div>
 
     <div class="card">
+      <div class="section-label">카테고리별 예산</div>
+      ${EXPENSE_CATEGORIES.map((c) => renderBudgetItem(c, spentByCategory[c.id] ?? 0, budgets[c.id] ?? 0)).join("")}
+      <button type="button" class="btn-secondary" id="save-budget-btn">예산 저장</button>
+    </div>
+
+    <div class="card">
       <div class="section-label">카테고리별 수입</div>
       ${renderSubtotalRows(incomeSubtotals, totalIncomeKrw)}
     </div>
@@ -57,6 +67,23 @@ export async function renderSummaryScreen(container) {
       <button type="button" class="btn-secondary" id="export-csv-btn">데이터 내보내기 (CSV)</button>
     </div>
   `;
+
+  // 예산 입력칸: 천 단위 콤마 표시 + 값 추적
+  const budgetValues = { ...budgets };
+  EXPENSE_CATEGORIES.forEach((c) => {
+    const input = container.querySelector(`#budget-input-${c.id}`);
+    attachThousandsFormatting(input, (val) => {
+      budgetValues[c.id] = val;
+    });
+  });
+
+  const saveBudgetBtn = container.querySelector("#save-budget-btn");
+  saveBudgetBtn.addEventListener("click", async () => {
+    saveBudgetBtn.disabled = true;
+    await budgetStorage.setAll(budgetValues);
+    showToast("예산을 저장했어요");
+    renderSummaryScreen(container);
+  });
 
   const exportBtn = container.querySelector("#export-csv-btn");
   exportBtn.addEventListener("click", async () => {
@@ -78,6 +105,38 @@ export async function renderSummaryScreen(container) {
       exportBtn.textContent = originalLabel;
     }
   });
+}
+
+function renderBudgetItem(category, spent, budget) {
+  const hasBudget = budget > 0;
+  const pct = hasBudget ? Math.round((spent / budget) * 100) : 0;
+  const isOver = hasBudget && spent > budget;
+  const barWidth = Math.min(pct, 100);
+
+  const barHtml = hasBudget
+    ? `
+      <div class="budget-bar-track">
+        <div class="budget-bar-fill${isOver ? " over-budget" : ""}" style="width:${barWidth}%"></div>
+      </div>
+      <div class="budget-bar-label${isOver ? " over-budget" : ""}">
+        ${formatKRW(spent)} / ${formatKRW(budget)} (${pct}%)${isOver ? " · 예산 초과" : ""}
+      </div>
+    `
+    : "";
+
+  return `
+    <div class="budget-item">
+      <div class="budget-item-header">
+        <span>${category.label}</span>
+        <div class="budget-input-wrap">
+          <input id="budget-input-${category.id}" type="text" inputmode="numeric" placeholder="0"
+            value="${budget > 0 ? formatThousands(budget) : ""}" autocomplete="off" />
+          <span>원</span>
+        </div>
+      </div>
+      ${barHtml}
+    </div>
+  `;
 }
 
 function showToast(message) {
