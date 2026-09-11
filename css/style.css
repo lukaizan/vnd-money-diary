@@ -158,13 +158,23 @@ body {
   position: relative;
 }
 
+/* 결제 금액 입력 칸: 한눈에 잘 보이고 손가락으로 누르기 편하도록 큼직하게.
+   .field input[type="text"] 기본 스타일보다 우선하도록 specificity를 맞춤. */
+.field .vnd-input-wrap input {
+  padding: 18px 58px 18px 18px;
+  font-size: 24px;
+  font-weight: 600;
+  border-radius: 14px;
+}
+
 .vnd-input-wrap span {
   position: absolute;
-  right: 14px;
+  right: 18px;
   top: 50%;
   transform: translateY(-50%);
   color: var(--color-text-muted);
-  font-size: 14px;
+  font-size: 20px;
+  font-weight: 600;
 }
 
 .krw-preview {
