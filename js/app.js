@@ -1,3 +1,4 @@
+import { renderCalendarScreen } from "./screens/calendarScreen.js";
 import { renderInputScreen } from "./screens/inputScreen.js";
 import { renderListScreen } from "./screens/listScreen.js";
 import { renderSummaryScreen } from "./screens/summaryScreen.js";
@@ -10,7 +11,9 @@ const nav = mountBottomNav(document.getElementById("bottom-nav"), (id) => showSc
 function showScreen(id, params = {}) {
   root.innerHTML = "";
 
-  if (id === "list") {
+  if (id === "calendar") {
+    renderCalendarScreen(root);
+  } else if (id === "list") {
     renderListScreen(root, {
       onEdit: (expense) => showScreen("input", { editingExpense: expense }),
     });
@@ -26,7 +29,7 @@ function showScreen(id, params = {}) {
   nav.setActive(id);
 }
 
-showScreen("input");
+showScreen("calendar");
 
 // 헤더에 현재 환율을 표시 (입력 화면과는 별개로, 앱 어디서든 보이도록)
 const rateIndicator = document.getElementById("rate-indicator");

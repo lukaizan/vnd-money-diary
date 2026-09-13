@@ -525,3 +525,110 @@ body {
   color: var(--color-danger);
   font-weight: 600;
 }
+
+/* Calendar screen */
+.calendar-month-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.calendar-month-label {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.month-nav-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: 10px;
+  font-size: 18px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.calendar-weekday {
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  padding: 6px 0;
+}
+
+.calendar-cell {
+  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: none;
+  background: none;
+  border-radius: 10px;
+  cursor: pointer;
+  padding: 2px;
+  font-family: inherit;
+}
+
+.calendar-cell.empty {
+  cursor: default;
+}
+
+.calendar-cell .day-number {
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.calendar-cell.today {
+  box-shadow: inset 0 0 0 1.5px var(--color-primary);
+}
+
+.calendar-cell.today .day-number {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.calendar-cell.selected {
+  background: rgba(47, 111, 237, 0.12);
+}
+
+.day-total {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.day-total.negative {
+  color: var(--color-danger);
+}
+
+.day-total.positive {
+  color: var(--color-income);
+}
+
+.day-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.day-detail-date {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.day-detail-total {
+  font-size: 13px;
+  color: var(--color-danger);
+  font-weight: 600;
+}

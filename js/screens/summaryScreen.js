@@ -4,6 +4,7 @@ import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "../lib/categories.js";
 import { formatKRW, currentYearMonth } from "../lib/format.js";
 import { exportExpensesAsCsv } from "../lib/csvExport.js";
 import { attachThousandsFormatting, formatThousands } from "../lib/numberInput.js";
+import { sumKrw, splitByType } from "../lib/monthlyStats.js";
 
 export async function renderSummaryScreen(container) {
   container.innerHTML = `<div class="card"><p class="empty-state">불러오는 중...</p></div>`;
@@ -14,9 +15,7 @@ export async function renderSummaryScreen(container) {
   );
   const budgets = await budgetStorage.getAll();
 
-  // 예전에 저장된 내역(type 없음)은 지출로 취급
-  const expenseRecords = monthRecords.filter((e) => (e.type ?? "expense") === "expense");
-  const incomeRecords = monthRecords.filter((e) => e.type === "income");
+  const { expenseRecords, incomeRecords } = splitByType(monthRecords);
 
   const totalExpenseKrw = sumKrw(expenseRecords);
   const totalIncomeKrw = sumKrw(incomeRecords);
@@ -145,10 +144,6 @@ function showToast(message) {
   toast.textContent = message;
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 1800);
-}
-
-function sumKrw(records) {
-  return records.reduce((sum, e) => sum + e.krwAmount, 0);
 }
 
 function subtotalsByCategory(categories, records) {
