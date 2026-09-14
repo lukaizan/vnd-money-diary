@@ -1,7 +1,14 @@
 import { expenseRepository } from "../lib/storage.js";
 import { categoryLabel } from "../lib/categories.js";
-import { sumKrw, splitByType } from "../lib/monthlyStats.js";
-import { formatKRW, formatByCurrency, formatDateKorean, todayISODate, currentYearMonth } from "../lib/format.js";
+import { sumKrw, splitByType, shiftYearMonth } from "../lib/monthlyStats.js";
+import {
+  formatKRW,
+  formatByCurrency,
+  formatCompactKRW,
+  formatDateKorean,
+  todayISODate,
+  currentYearMonth,
+} from "../lib/format.js";
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -161,23 +168,9 @@ function dayTotals(records) {
   return { income, expense };
 }
 
-function shiftYearMonth(yearMonth, delta) {
-  const [y, m] = yearMonth.split("-").map(Number);
-  const date = new Date(y, m - 1 + delta, 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
 function defaultSelectedDateFor(yearMonth) {
   const todayISO = todayISODate();
   return yearMonth === todayISO.slice(0, 7) ? todayISO : `${yearMonth}-01`;
-}
-
-function formatCompactKRW(amountKrw) {
-  const abs = Math.round(Math.abs(amountKrw));
-  if (abs >= 10000) {
-    return `${Math.round(abs / 10000).toLocaleString("en-US")}만`;
-  }
-  return abs.toLocaleString("en-US");
 }
 
 function renderDayDetailItem(e) {

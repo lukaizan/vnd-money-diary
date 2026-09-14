@@ -15,6 +15,12 @@
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
 
   <link rel="stylesheet" href="./css/style.css" />
+
+  <!-- 요약 화면의 차트에 쓰는 Chart.js (npm/빌드 없이 CDN으로 불러옴).
+       defer로 불러와서 화면 렌더링을 막지 않고, app.js보다 먼저 실행되도록 함.
+       CDN 로딩에 실패해도(오프라인 등) 앱의 나머지 기능은 정상 동작합니다. -->
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js"></script>
 </head>
 <body>
   <div id="app">

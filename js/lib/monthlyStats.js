@@ -10,3 +10,10 @@ export function splitByType(records) {
   const incomeRecords = records.filter((e) => e.type === "income");
   return { expenseRecords, incomeRecords };
 }
+
+/** @param {string} yearMonth "YYYY-MM" @param {number} delta 몇 달 이동할지 (음수면 과거로) */
+export function shiftYearMonth(yearMonth, delta) {
+  const [y, m] = yearMonth.split("-").map(Number);
+  const date = new Date(y, m - 1 + delta, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}

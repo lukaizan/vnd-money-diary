@@ -24,6 +24,15 @@ export function formatKRW(amount) {
   return formatByCurrency(amount, "KRW");
 }
 
+// 캘린더 칸/차트 축처럼 공간이 좁은 곳에 쓰는 축약형 (예: 1,500,000 -> "150만")
+export function formatCompactKRW(amountKrw) {
+  const abs = Math.round(Math.abs(amountKrw));
+  if (abs >= 10000) {
+    return `${Math.round(abs / 10000).toLocaleString("en-US")}만`;
+  }
+  return abs.toLocaleString("en-US");
+}
+
 export function todayISODate() {
   const d = new Date();
   const tz = d.getTimezoneOffset() * 60000;
