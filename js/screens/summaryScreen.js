@@ -1,10 +1,11 @@
 import { expenseRepository } from "../lib/storage.js";
 import { budgetStorage } from "../lib/budgetStorage.js";
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "../lib/categories.js";
+import { categoriesForType, categoryLabel, categoryColor, categoryEmoji } from "../lib/categories.js";
 import { formatKRW, formatCompactKRW, currentYearMonth } from "../lib/format.js";
 import { exportExpensesAsCsv } from "../lib/csvExport.js";
 import { attachThousandsFormatting, formatThousands } from "../lib/numberInput.js";
 import { sumKrw, splitByType, shiftYearMonth } from "../lib/monthlyStats.js";
+import { escapeHtml } from "../lib/html.js";
 
 const TREND_MAX_MONTHS = 12; // 그래프가 너무 길어지지 않도록 최근 최대 12개월까지만
 
@@ -43,8 +44,8 @@ export async function renderSummaryScreen(container) {
   const totalIncomeKrw = sumKrw(incomeRecords);
   const net = totalIncomeKrw - totalExpenseKrw;
 
-  const expenseSubtotals = subtotalsByCategory(EXPENSE_CATEGORIES, expenseRecords);
-  const incomeSubtotals = subtotalsByCategory(INCOME_CATEGORIES, incomeRecords);
+  const expenseSubtotals = groupByCategory(expenseRecords);
+  const incomeSubtotals = groupByCategory(incomeRecords);
   const spentByCategory = Object.fromEntries(expenseSubtotals.map((s) => [s.id, s.total]));
 
   const trend = buildTrendData(allRecords, yearMonth);
@@ -87,7 +88,9 @@ export async function renderSummaryScreen(container) {
 
     <div class="card">
       <div class="section-label">카테고리별 예산</div>
-      ${EXPENSE_CATEGORIES.map((c) => renderBudgetItem(c, spentByCategory[c.id] ?? 0, budgets[c.id] ?? 0)).join("")}
+      ${categoriesForType("expense")
+        .map((c) => renderBudgetItem(c, spentByCategory[c.id] ?? 0, budgets[c.id] ?? 0))
+        .join("")}
       <button type="button" class="btn-secondary" id="save-budget-btn">예산 저장</button>
     </div>
 
@@ -105,7 +108,7 @@ export async function renderSummaryScreen(container) {
 
   // 예산 입력칸: 천 단위 콤마 표시 + 값 추적
   const budgetValues = { ...budgets };
-  EXPENSE_CATEGORIES.forEach((c) => {
+  categoriesForType("expense").forEach((c) => {
     const input = container.querySelector(`#budget-input-${c.id}`);
     attachThousandsFormatting(input, (val) => {
       budgetValues[c.id] = val;
@@ -216,7 +219,7 @@ function renderCharts(container, { expenseSubtotals, trend }) {
           datasets: [
             {
               data: nonZeroSubtotals.map((s) => s.total),
-              backgroundColor: nonZeroSubtotals.map((s) => getCssVar(`--color-${s.id}`)),
+              backgroundColor: nonZeroSubtotals.map((s) => s.color),
               borderColor: getCssVar("--color-surface"),
               borderWidth: 2,
             },
@@ -318,10 +321,12 @@ function renderBudgetItem(category, spent, budget) {
     `
     : "";
 
+  const emojiPrefix = category.emoji ? `${escapeHtml(category.emoji)} ` : "";
+
   return `
     <div class="budget-item">
       <div class="budget-item-header">
-        <span>${category.label}</span>
+        <span>${emojiPrefix}${escapeHtml(category.label)}</span>
         <div class="budget-input-wrap">
           <input id="budget-input-${category.id}" type="text" inputmode="numeric" placeholder="0"
             value="${budget > 0 ? formatThousands(budget) : ""}" autocomplete="off" />
@@ -341,21 +346,38 @@ function showToast(message) {
   setTimeout(() => toast.remove(), 1800);
 }
 
-function subtotalsByCategory(categories, records) {
-  return categories.map((c) => ({
-    ...c,
-    total: records.filter((e) => e.category === c.id).reduce((sum, e) => sum + e.krwAmount, 0),
-  }));
+// 고정된 카테고리 목록이 아니라, 실제 내역에 등장하는 카테고리를 그대로 집계합니다.
+// 삭제된 커스텀 카테고리로 저장된 옛날 내역도 categoryLabel/categoryColor가
+// 계속 이름/색을 찾아주기 때문에 정상적으로 표시됩니다.
+function groupByCategory(records) {
+  const totals = new Map();
+  records.forEach((e) => {
+    totals.set(e.category, (totals.get(e.category) ?? 0) + e.krwAmount);
+  });
+
+  return [...totals.entries()]
+    .map(([id, total]) => ({
+      id,
+      label: categoryLabel(id),
+      emoji: categoryEmoji(id),
+      color: categoryColor(id),
+      total,
+    }))
+    .sort((a, b) => b.total - a.total);
 }
 
 function renderSubtotalRows(subtotals, total) {
+  if (subtotals.length === 0) {
+    return `<p class="empty-state">이번 달 내역이 없어요.</p>`;
+  }
   return subtotals
     .map((s) => {
       const pct = total > 0 ? Math.round((s.total / total) * 100) : 0;
+      const emojiPrefix = s.emoji ? `${escapeHtml(s.emoji)} ` : "";
       return `
         <div class="summary-row">
-          <span>${s.label}</span>
-          <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:var(--color-${s.id})"></div></div>
+          <span>${emojiPrefix}${escapeHtml(s.label)}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${s.color}"></div></div>
           <span>${formatKRW(s.total)}</span>
         </div>
       `;

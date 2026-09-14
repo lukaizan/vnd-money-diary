@@ -1,12 +1,22 @@
-import { categoriesForType } from "../lib/categories.js";
+import {
+  categoriesForType,
+  addCustomCategory,
+  removeCustomCategory,
+  isBuiltinCategory,
+  findCategory,
+  EMOJI_CHOICES,
+} from "../lib/categories.js";
 import { CURRENCIES, currencySymbol } from "../lib/currencies.js";
 import { expenseRepository } from "../lib/storage.js";
 import { getExchangeRate } from "../lib/exchangeRate.js";
 import { formatByCurrency, formatKRW, todayISODate } from "../lib/format.js";
 import { attachThousandsFormatting, formatThousands } from "../lib/numberInput.js";
+import { escapeHtml } from "../lib/html.js";
 
 // 환율 조회가 필요한 통화만 대상 (KRW는 그대로 입력하므로 환율이 필요 없음)
 const RATE_BASED_CURRENCIES = CURRENCIES.map((c) => c.code).filter((code) => code !== "KRW");
+
+const LONG_PRESS_MS = 600;
 
 /**
  * @param {HTMLElement} container
@@ -24,6 +34,7 @@ export function renderInputScreen(container, { editingExpense = null, onDoneEdit
     amountValues[selectedCurrency] = editingExpense.amount;
   }
   const rates = {}; // { [currencyCode]: { rate, fetchedAt, fromCache, error? } }
+  let formSelectedEmoji = EMOJI_CHOICES[0];
 
   container.innerHTML = `
     <form id="expense-form" class="card">
@@ -68,8 +79,9 @@ export function renderInputScreen(container, { editingExpense = null, onDoneEdit
       </div>
 
       <div class="field">
-        <label>카테고리</label>
+        <label>카테고리 <span class="field-hint">(커스텀 카테고리는 길게 누르면 삭제)</span></label>
         <div class="category-grid" id="category-grid"></div>
+        <div class="category-form" id="category-form" hidden></div>
       </div>
 
       <div class="field">
@@ -88,6 +100,7 @@ export function renderInputScreen(container, { editingExpense = null, onDoneEdit
   const dateInput = container.querySelector("#expense-date");
   const memoInput = container.querySelector("#expense-memo");
   const categoryGrid = container.querySelector("#category-grid");
+  const categoryForm = container.querySelector("#category-form");
   const form = container.querySelector("#expense-form");
   const cancelEditBtn = container.querySelector("#cancel-edit-btn");
 
@@ -101,14 +114,39 @@ export function renderInputScreen(container, { editingExpense = null, onDoneEdit
   function renderCategoryGrid() {
     const categories = categoriesForType(selectedType);
     if (!categories.some((c) => c.id === selectedCategory)) {
-      selectedCategory = categories[0].id;
+      selectedCategory = categories[0]?.id ?? null;
     }
-    categoryGrid.innerHTML = categories
-      .map(
-        (c) =>
-          `<button type="button" class="category-btn${c.id === selectedCategory ? " selected" : ""}" data-category="${c.id}">${c.label}</button>`
-      )
-      .join("");
+    categoryGrid.innerHTML =
+      categories
+        .map((c) => {
+          const emojiPrefix = c.emoji ? `${escapeHtml(c.emoji)} ` : "";
+          return `<button type="button" class="category-btn${c.id === selectedCategory ? " selected" : ""}" data-category="${c.id}">${emojiPrefix}${escapeHtml(c.label)}</button>`;
+        })
+        .join("") +
+      `<button type="button" class="category-btn add-category-btn" id="add-category-btn">+ 새 카테고리</button>`;
+  }
+
+  function openCategoryForm() {
+    formSelectedEmoji = EMOJI_CHOICES[0];
+    categoryForm.innerHTML = `
+      <input type="text" id="category-name-input" class="category-name-input" placeholder="카테고리 이름 (예: 데이트)" maxlength="12" autocomplete="off" />
+      <div class="emoji-grid" id="emoji-grid">
+        ${EMOJI_CHOICES.map(
+          (e) => `<button type="button" class="emoji-btn${e === formSelectedEmoji ? " selected" : ""}" data-emoji="${e}">${e}</button>`
+        ).join("")}
+      </div>
+      <div class="category-form-actions">
+        <button type="button" class="btn-secondary" id="category-form-cancel">취소</button>
+        <button type="button" class="btn-primary" id="category-form-save">추가</button>
+      </div>
+    `;
+    categoryForm.hidden = false;
+    categoryForm.querySelector("#category-name-input").focus();
+  }
+
+  function closeCategoryForm() {
+    categoryForm.hidden = true;
+    categoryForm.innerHTML = "";
   }
 
   function updatePreview() {
@@ -149,6 +187,7 @@ export function renderInputScreen(container, { editingExpense = null, onDoneEdit
     if (!btn) return;
     selectedType = btn.dataset.type;
     [...typeToggle.children].forEach((c) => c.classList.toggle("selected", c === btn));
+    closeCategoryForm();
     renderCategoryGrid();
   });
 
@@ -166,11 +205,83 @@ export function renderInputScreen(container, { editingExpense = null, onDoneEdit
     amountInput(selectedCurrency).focus();
   });
 
+  // 카테고리 버튼 선택 + "+ 새 카테고리" 열기
+  let longPressTimer = null;
+  let longPressTriggered = false;
+
+  categoryGrid.addEventListener("pointerdown", (e) => {
+    const btn = e.target.closest(".category-btn[data-category]");
+    if (!btn || isBuiltinCategory(btn.dataset.category)) return;
+    longPressTriggered = false;
+    longPressTimer = setTimeout(() => {
+      longPressTriggered = true;
+      handleDeleteCustomCategory(btn.dataset.category);
+    }, LONG_PRESS_MS);
+  });
+
+  ["pointerup", "pointercancel", "pointerleave"].forEach((evt) => {
+    categoryGrid.addEventListener(evt, () => clearTimeout(longPressTimer));
+  });
+
   categoryGrid.addEventListener("click", (e) => {
-    const btn = e.target.closest(".category-btn");
+    if (e.target.closest("#add-category-btn")) {
+      openCategoryForm();
+      return;
+    }
+
+    const btn = e.target.closest(".category-btn[data-category]");
     if (!btn) return;
+
+    if (longPressTriggered) {
+      longPressTriggered = false; // 롱프레스로 이미 처리됨 -> 선택으로 이어지지 않게 무시
+      return;
+    }
+
     selectedCategory = btn.dataset.category;
-    [...categoryGrid.children].forEach((c) => c.classList.toggle("selected", c === btn));
+    [...categoryGrid.querySelectorAll(".category-btn")].forEach((c) => c.classList.toggle("selected", c === btn));
+  });
+
+  function handleDeleteCustomCategory(categoryId) {
+    const category = findCategory(categoryId);
+    if (!category) return;
+    const confirmed = confirm(
+      `"${category.label}" 카테고리를 삭제할까요?\n이미 저장된 내역은 그대로 남아있어요.`
+    );
+    if (!confirmed) return;
+    removeCustomCategory(categoryId);
+    if (selectedCategory === categoryId) {
+      selectedCategory = null; // renderCategoryGrid가 알아서 첫 항목으로 다시 채워줌
+    }
+    renderCategoryGrid();
+  }
+
+  categoryForm.addEventListener("click", (e) => {
+    const emojiBtn = e.target.closest(".emoji-btn");
+    if (emojiBtn) {
+      formSelectedEmoji = emojiBtn.dataset.emoji;
+      categoryForm
+        .querySelectorAll(".emoji-btn")
+        .forEach((b) => b.classList.toggle("selected", b.dataset.emoji === formSelectedEmoji));
+      return;
+    }
+
+    if (e.target.closest("#category-form-cancel")) {
+      closeCategoryForm();
+      return;
+    }
+
+    if (e.target.closest("#category-form-save")) {
+      const nameInput = categoryForm.querySelector("#category-name-input");
+      const label = nameInput.value.trim();
+      if (!label) {
+        nameInput.focus();
+        return;
+      }
+      const newCategory = addCustomCategory({ type: selectedType, label, emoji: formSelectedEmoji });
+      selectedCategory = newCategory.id;
+      closeCategoryForm();
+      renderCategoryGrid();
+    }
   });
 
   if (cancelEditBtn) {
@@ -252,12 +363,6 @@ export function renderInputScreen(container, { editingExpense = null, onDoneEdit
         if (code === selectedCurrency) updatePreview();
       });
   });
-}
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
 }
 
 function formatUpdatedAt(timestamp) {

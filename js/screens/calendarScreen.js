@@ -1,5 +1,5 @@
 import { expenseRepository } from "../lib/storage.js";
-import { categoryLabel } from "../lib/categories.js";
+import { categoryLabel, categoryColor, categoryEmoji } from "../lib/categories.js";
 import { sumKrw, splitByType, shiftYearMonth } from "../lib/monthlyStats.js";
 import {
   formatKRW,
@@ -9,6 +9,7 @@ import {
   todayISODate,
   currentYearMonth,
 } from "../lib/format.js";
+import { escapeHtml } from "../lib/html.js";
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -180,11 +181,12 @@ function renderDayDetailItem(e) {
     e.inputCurrency !== "KRW"
       ? `<div class="original-amount">${formatByCurrency(e.amount, e.inputCurrency)}</div>`
       : "";
+  const emoji = categoryEmoji(e.category);
 
   return `
     <div class="expense-item">
       <div>
-        <span class="category-chip ${e.category}">${categoryLabel(e.category)}</span>
+        <span class="category-chip" style="background:${categoryColor(e.category)}">${emoji ? escapeHtml(emoji) + " " : ""}${escapeHtml(categoryLabel(e.category))}</span>
         ${e.memo ? `<div class="memo">${escapeHtml(e.memo)}</div>` : ""}
       </div>
       <div class="amounts ${type}">
@@ -193,10 +195,4 @@ function renderDayDetailItem(e) {
       </div>
     </div>
   `;
-}
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
 }

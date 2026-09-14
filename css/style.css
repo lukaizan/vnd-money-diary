@@ -8,13 +8,6 @@
   --color-border: #e5e7eb;
   --color-danger: #e0453f;
 
-  --color-food: #ef8354;
-  --color-transport: #2f6fed;
-  --color-living: #2fa84f;
-  --color-etc: #9b6bd6;
-  --color-salary: #1f9d55;
-  --color-investment: #d6a419;
-
   --color-income: #1f9d55;
   --color-expense: #1c1f26;
 
@@ -239,6 +232,74 @@ body {
   font-weight: 600;
 }
 
+.field-hint {
+  font-weight: 400;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.add-category-btn {
+  grid-column: 1 / -1;
+  border-style: dashed;
+  color: var(--color-text-muted);
+}
+
+.category-form {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-bg);
+}
+
+.category-name-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  font-size: 15px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  margin-bottom: 10px;
+}
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.emoji-btn {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: 8px;
+  padding: 6px 0;
+  font-size: 17px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.emoji-btn.selected {
+  border-color: var(--color-primary);
+  background: rgba(47, 111, 237, 0.12);
+}
+
+.category-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.category-form-actions .btn-secondary,
+.category-form-actions .btn-primary {
+  width: auto;
+  flex: 1;
+  margin-top: 0;
+  padding: 10px;
+  font-size: 14px;
+}
+
 .btn-primary {
   width: 100%;
   padding: 14px;
@@ -315,13 +376,6 @@ body {
   color: #fff;
   margin-bottom: 4px;
 }
-
-.category-chip.food { background: var(--color-food); }
-.category-chip.transport { background: var(--color-transport); }
-.category-chip.living { background: var(--color-living); }
-.category-chip.etc { background: var(--color-etc); }
-.category-chip.salary { background: var(--color-salary); }
-.category-chip.investment { background: var(--color-investment); }
 
 .expense-item .memo {
   font-size: 13px;

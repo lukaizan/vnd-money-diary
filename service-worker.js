@@ -12,6 +12,7 @@ const APP_SHELL = [
   "./js/lib/currencies.js",
   "./js/lib/csvExport.js",
   "./js/lib/format.js",
+  "./js/lib/html.js",
   "./js/lib/monthlyStats.js",
   "./js/lib/storage.js",
   "./js/lib/exchangeRate.js",

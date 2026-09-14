@@ -1,6 +1,7 @@
 import { expenseRepository } from "../lib/storage.js";
-import { categoryLabel } from "../lib/categories.js";
+import { categoryLabel, categoryColor, categoryEmoji } from "../lib/categories.js";
 import { formatKRW, formatByCurrency, formatDateKorean } from "../lib/format.js";
+import { escapeHtml } from "../lib/html.js";
 
 /**
  * @param {HTMLElement} container
@@ -26,11 +27,12 @@ export async function renderListScreen(container, { onEdit = null } = {}) {
           ? `<div class="original-amount">${formatByCurrency(e.amount, e.inputCurrency)}</div>`
           : "";
       const sign = type === "income" ? "+" : "-";
+      const emoji = categoryEmoji(e.category);
 
       return `
       <div class="expense-item" data-id="${e.id}">
         <div>
-          <span class="category-chip ${e.category}">${categoryLabel(e.category)}</span>
+          <span class="category-chip" style="background:${categoryColor(e.category)}">${emoji ? escapeHtml(emoji) + " " : ""}${escapeHtml(categoryLabel(e.category))}</span>
           <div>${formatDateKorean(e.date)}</div>
           ${e.memo ? `<div class="memo">${escapeHtml(e.memo)}</div>` : ""}
         </div>
@@ -63,10 +65,4 @@ export async function renderListScreen(container, { onEdit = null } = {}) {
       renderListScreen(container, { onEdit });
     }
   });
-}
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
 }
