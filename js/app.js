@@ -12,15 +12,34 @@ function showScreen(id, params = {}) {
   root.innerHTML = "";
 
   if (id === "calendar") {
-    renderCalendarScreen(root);
+    renderCalendarScreen(root, {
+      initialYearMonth: params.yearMonth ?? null,
+      initialSelectedDate: params.selectedDate ?? null,
+      onAddForDate: (dateStr) =>
+        showScreen("input", {
+          initialDate: dateStr,
+          onSavedNew: () => showScreen("calendar", { yearMonth: dateStr.slice(0, 7), selectedDate: dateStr }),
+        }),
+      onEdit: (expense) =>
+        showScreen("input", {
+          editingExpense: expense,
+          onDoneEditing: (updated) => {
+            const finalDate = updated?.date ?? expense.date;
+            showScreen("calendar", { yearMonth: finalDate.slice(0, 7), selectedDate: finalDate });
+          },
+        }),
+    });
   } else if (id === "list") {
     renderListScreen(root, {
-      onEdit: (expense) => showScreen("input", { editingExpense: expense }),
+      onEdit: (expense) =>
+        showScreen("input", { editingExpense: expense, onDoneEditing: () => showScreen("list") }),
     });
   } else if (id === "input") {
     renderInputScreen(root, {
       editingExpense: params.editingExpense ?? null,
-      onDoneEditing: () => showScreen("list"),
+      initialDate: params.initialDate ?? null,
+      onSavedNew: params.onSavedNew ?? null,
+      onDoneEditing: params.onDoneEditing ?? (() => showScreen("list")),
     });
   } else {
     renderSummaryScreen(root);

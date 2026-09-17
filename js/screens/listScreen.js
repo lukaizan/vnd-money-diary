@@ -2,6 +2,7 @@ import { expenseRepository } from "../lib/storage.js";
 import { categoryLabel, categoryColor, categoryEmoji } from "../lib/categories.js";
 import { formatKRW, formatByCurrency, formatDateKorean } from "../lib/format.js";
 import { escapeHtml } from "../lib/html.js";
+import { attachLongPress } from "../lib/longPress.js";
 
 /**
  * @param {HTMLElement} container
@@ -64,5 +65,14 @@ export async function renderListScreen(container, { onEdit = null } = {}) {
       await expenseRepository.remove(id);
       renderListScreen(container, { onEdit });
     }
+  });
+
+  // 항목을 길게 누르면(버튼 영역 제외) 캘린더 화면과 동일하게 수정 화면으로 이동
+  attachLongPress(listCard, ".expense-item[data-id]", {
+    canLongPress: (el, ev) => !ev.target.closest(".item-actions"),
+    onLongPress: (el) => {
+      const expense = expenses.find((e) => e.id === el.dataset.id);
+      if (expense) onEdit?.(expense);
+    },
   });
 }

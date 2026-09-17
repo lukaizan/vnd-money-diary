@@ -12,18 +12,27 @@ import { getExchangeRate } from "../lib/exchangeRate.js";
 import { formatByCurrency, formatKRW, todayISODate } from "../lib/format.js";
 import { attachThousandsFormatting, formatThousands } from "../lib/numberInput.js";
 import { escapeHtml } from "../lib/html.js";
+import { attachLongPress } from "../lib/longPress.js";
 
 // 환율 조회가 필요한 통화만 대상 (KRW는 그대로 입력하므로 환율이 필요 없음)
 const RATE_BASED_CURRENCIES = CURRENCIES.map((c) => c.code).filter((code) => code !== "KRW");
 
-const LONG_PRESS_MS = 600;
-
 /**
  * @param {HTMLElement} container
- * @param {{ editingExpense?: object|null, onDoneEditing?: () => void }} [options]
+ * @param {{
+ *   editingExpense?: object|null,
+ *   onDoneEditing?: () => void,
+ *   initialDate?: string|null,
+ *   onSavedNew?: (record: object) => void,
+ * }} [options]
  *   editingExpense가 있으면 새로 추가하는 대신 그 내역을 수정하는 화면으로 동작합니다.
+ *   initialDate는 새로 추가할 때(캘린더에서 날짜를 길게 눌러 들어온 경우 등) 날짜 칸의 기본값입니다.
+ *   onSavedNew가 있으면, 새로 추가 저장한 뒤 폼을 초기화하고 계속 입력받는 대신 이 콜백을 호출합니다.
  */
-export function renderInputScreen(container, { editingExpense = null, onDoneEditing = null } = {}) {
+export function renderInputScreen(
+  container,
+  { editingExpense = null, onDoneEditing = null, initialDate = null, onSavedNew = null } = {}
+) {
   const isEditing = editingExpense !== null;
 
   let selectedType = editingExpense?.type ?? "expense"; // 앱을 처음 열었을 때 기본값
@@ -75,7 +84,7 @@ export function renderInputScreen(container, { editingExpense = null, onDoneEdit
 
       <div class="field">
         <label for="expense-date">날짜</label>
-        <input id="expense-date" type="date" value="${editingExpense?.date ?? todayISODate()}" required />
+        <input id="expense-date" type="date" value="${editingExpense?.date ?? initialDate ?? todayISODate()}" required />
       </div>
 
       <div class="field">
@@ -205,40 +214,21 @@ export function renderInputScreen(container, { editingExpense = null, onDoneEdit
     amountInput(selectedCurrency).focus();
   });
 
-  // 카테고리 버튼 선택 + "+ 새 카테고리" 열기
-  let longPressTimer = null;
-  let longPressTriggered = false;
-
-  categoryGrid.addEventListener("pointerdown", (e) => {
-    const btn = e.target.closest(".category-btn[data-category]");
-    if (!btn || isBuiltinCategory(btn.dataset.category)) return;
-    longPressTriggered = false;
-    longPressTimer = setTimeout(() => {
-      longPressTriggered = true;
-      handleDeleteCustomCategory(btn.dataset.category);
-    }, LONG_PRESS_MS);
-  });
-
-  ["pointerup", "pointercancel", "pointerleave"].forEach((evt) => {
-    categoryGrid.addEventListener(evt, () => clearTimeout(longPressTimer));
-  });
-
+  // "+ 새 카테고리" 열기 (롱프레스 대상이 아닌 별도 버튼이라 따로 처리)
   categoryGrid.addEventListener("click", (e) => {
     if (e.target.closest("#add-category-btn")) {
       openCategoryForm();
-      return;
     }
+  });
 
-    const btn = e.target.closest(".category-btn[data-category]");
-    if (!btn) return;
-
-    if (longPressTriggered) {
-      longPressTriggered = false; // 롱프레스로 이미 처리됨 -> 선택으로 이어지지 않게 무시
-      return;
-    }
-
-    selectedCategory = btn.dataset.category;
-    [...categoryGrid.querySelectorAll(".category-btn")].forEach((c) => c.classList.toggle("selected", c === btn));
+  // 카테고리 버튼: 짧게 탭하면 선택, 커스텀 카테고리를 길게 누르면 삭제
+  attachLongPress(categoryGrid, ".category-btn[data-category]", {
+    canLongPress: (btn) => !isBuiltinCategory(btn.dataset.category),
+    onLongPress: (btn) => handleDeleteCustomCategory(btn.dataset.category),
+    onTap: (btn) => {
+      selectedCategory = btn.dataset.category;
+      [...categoryGrid.querySelectorAll(".category-btn")].forEach((c) => c.classList.toggle("selected", c === btn));
+    },
   });
 
   function handleDeleteCustomCategory(categoryId) {
@@ -332,14 +322,19 @@ export function renderInputScreen(container, { editingExpense = null, onDoneEdit
     saveBtn.disabled = true;
 
     if (isEditing) {
-      await expenseRepository.update(editingExpense.id, record);
+      const updated = await expenseRepository.update(editingExpense.id, record);
       showToast(`${formatByCurrency(record.amount, record.inputCurrency)}로 수정했어요`);
-      onDoneEditing?.();
+      onDoneEditing?.(updated);
       return;
     }
 
-    await expenseRepository.add(record);
+    const saved = await expenseRepository.add(record);
     showToast(`${formatByCurrency(record.amount, record.inputCurrency)} 저장했어요`);
+
+    if (onSavedNew) {
+      onSavedNew(saved);
+      return;
+    }
 
     form.reset();
     dateInput.value = todayISODate();

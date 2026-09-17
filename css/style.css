@@ -223,6 +223,9 @@ body {
   font-size: 13px;
   cursor: pointer;
   color: var(--color-text);
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .category-btn.selected {
@@ -236,6 +239,11 @@ body {
   font-weight: 400;
   color: var(--color-text-muted);
   font-size: 11px;
+}
+
+.calendar-hint {
+  display: block;
+  margin-bottom: 10px;
 }
 
 .add-category-btn {
@@ -362,6 +370,9 @@ body {
   gap: 8px;
   padding: 12px 0;
   border-bottom: 1px solid var(--color-border);
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .expense-item:last-child {
@@ -630,6 +641,9 @@ body {
   cursor: pointer;
   padding: 2px;
   font-family: inherit;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .calendar-cell.empty {

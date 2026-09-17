@@ -10,13 +10,28 @@ import {
   currentYearMonth,
 } from "../lib/format.js";
 import { escapeHtml } from "../lib/html.js";
+import { attachLongPress } from "../lib/longPress.js";
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
-export async function renderCalendarScreen(container) {
+/**
+ * @param {HTMLElement} container
+ * @param {{
+ *   initialYearMonth?: string|null,
+ *   initialSelectedDate?: string|null,
+ *   onAddForDate?: (dateStr: string) => void,
+ *   onEdit?: (expense: object) => void,
+ * }} [options]
+ *   initialYearMonth/initialSelectedDate는 입력 화면에서 돌아왔을 때 보던 달/선택 날짜를
+ *   그대로 복원하기 위한 값입니다. 지정하지 않으면 이번 달/오늘이 기본값입니다.
+ */
+export async function renderCalendarScreen(
+  container,
+  { initialYearMonth = null, initialSelectedDate = null, onAddForDate = null, onEdit = null } = {}
+) {
   const todayISO = todayISODate();
-  let viewedYearMonth = currentYearMonth();
-  let selectedDate = todayISO;
+  let viewedYearMonth = initialYearMonth ?? currentYearMonth();
+  let selectedDate = initialSelectedDate ?? todayISO;
   let recordsByDate = {};
 
   container.innerHTML = `<div class="card"><p class="empty-state">불러오는 중...</p></div>`;
@@ -76,6 +91,7 @@ export async function renderCalendarScreen(container) {
       </div>
 
       <div class="card">
+        <div class="field-hint calendar-hint">날짜를 길게 누르면 그 날짜로 바로 입력할 수 있어요</div>
         <div class="calendar-grid">
           ${WEEKDAY_LABELS.map((w) => `<div class="calendar-weekday">${w}</div>`).join("")}
           ${cells.join("")}
@@ -96,12 +112,22 @@ export async function renderCalendarScreen(container) {
       loadMonth();
     });
 
-    container.querySelector(".calendar-grid").addEventListener("click", (e) => {
-      const cell = e.target.closest(".calendar-cell[data-date]");
-      if (!cell) return;
-      selectedDate = cell.dataset.date;
-      updateSelectedCell();
-      renderDayDetail();
+    // 날짜 칸: 짧게 탭하면 그 날짜 선택, 길게 누르면 그 날짜로 바로 입력 화면 이동
+    attachLongPress(container.querySelector(".calendar-grid"), ".calendar-cell[data-date]", {
+      onTap: (cell) => {
+        selectedDate = cell.dataset.date;
+        updateSelectedCell();
+        renderDayDetail();
+      },
+      onLongPress: (cell) => onAddForDate?.(cell.dataset.date),
+    });
+
+    // 선택한 날짜의 거래 내역: 길게 누르면 그 항목을 수정하는 화면으로 이동
+    attachLongPress(container.querySelector("#day-detail"), ".expense-item[data-id]", {
+      onLongPress: (el) => {
+        const record = (recordsByDate[selectedDate] || []).find((r) => r.id === el.dataset.id);
+        if (record) onEdit?.(record);
+      },
     });
 
     updateSelectedCell();
@@ -150,8 +176,8 @@ export async function renderCalendarScreen(container) {
       </div>
       ${
         dayRecords.length === 0
-          ? `<p class="empty-state">이 날짜엔 기록이 없어요.</p>`
-          : dayRecords.map(renderDayDetailItem).join("")
+          ? `<p class="empty-state">이 날짜엔 기록이 없어요.<br />날짜 칸을 길게 눌러 바로 입력할 수 있어요.</p>`
+          : `<div class="field-hint calendar-hint">항목을 길게 누르면 수정할 수 있어요</div>${dayRecords.map(renderDayDetailItem).join("")}`
       }
     `;
   }
@@ -184,7 +210,7 @@ function renderDayDetailItem(e) {
   const emoji = categoryEmoji(e.category);
 
   return `
-    <div class="expense-item">
+    <div class="expense-item" data-id="${e.id}">
       <div>
         <span class="category-chip" style="background:${categoryColor(e.category)}">${emoji ? escapeHtml(emoji) + " " : ""}${escapeHtml(categoryLabel(e.category))}</span>
         ${e.memo ? `<div class="memo">${escapeHtml(e.memo)}</div>` : ""}
