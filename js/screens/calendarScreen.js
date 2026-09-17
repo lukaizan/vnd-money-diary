@@ -1,10 +1,10 @@
 import { expenseRepository } from "../lib/storage.js";
 import { categoryLabel, categoryColor, categoryEmoji } from "../lib/categories.js";
-import { sumKrw, splitByType, shiftYearMonth } from "../lib/monthlyStats.js";
+import { settingsStorage } from "../lib/settingsStorage.js";
+import { sumConverted, splitByType, shiftYearMonth } from "../lib/monthlyStats.js";
 import {
-  formatKRW,
   formatByCurrency,
-  formatCompactKRW,
+  formatCompactAmount,
   formatDateKorean,
   todayISODate,
   currentYearMonth,
@@ -36,6 +36,9 @@ export async function renderCalendarScreen(
 
   container.innerHTML = `<div class="card"><p class="empty-state">불러오는 중...</p></div>`;
 
+  const settings = await settingsStorage.get();
+  const targetCurrency = settings.targetCurrency;
+
   async function loadMonth() {
     // getAll()은 목록/요약 화면과 동일한 읽기 전용 조회이며, 아무것도 저장/수정하지 않습니다.
     const allRecords = await expenseRepository.getAll();
@@ -48,8 +51,8 @@ export async function renderCalendarScreen(
     });
 
     const { expenseRecords, incomeRecords } = splitByType(monthRecords);
-    const totalExpense = sumKrw(expenseRecords);
-    const totalIncome = sumKrw(incomeRecords);
+    const totalExpense = sumConverted(expenseRecords);
+    const totalIncome = sumConverted(incomeRecords);
     const net = totalIncome - totalExpense;
 
     renderScreen(totalExpense, totalIncome, net);
@@ -78,15 +81,15 @@ export async function renderCalendarScreen(
 
         <div class="summary-line">
           <span class="label">이번 달 수입 합계</span>
-          <span class="amount income">+${formatKRW(totalIncome)}</span>
+          <span class="amount income">+${formatByCurrency(totalIncome, targetCurrency)}</span>
         </div>
         <div class="summary-line">
           <span class="label">이번 달 지출 합계</span>
-          <span class="amount expense">-${formatKRW(totalExpense)}</span>
+          <span class="amount expense">-${formatByCurrency(totalExpense, targetCurrency)}</span>
         </div>
         <div class="summary-line net">
           <span class="label">이번 달 순잔액 (수입 - 지출)</span>
-          <span class="amount ${net >= 0 ? "income" : "expense"}">${net >= 0 ? "+" : "-"}${formatKRW(Math.abs(net))}</span>
+          <span class="amount ${net >= 0 ? "income" : "expense"}">${net >= 0 ? "+" : "-"}${formatByCurrency(Math.abs(net), targetCurrency)}</span>
         </div>
       </div>
 
@@ -145,7 +148,7 @@ export async function renderCalendarScreen(
       // 지출이 있으면 그 지출 합계를 보여주고(빨간색), 수입이 지출보다 많은 날은 초록색으로 강조
       const amount = expense > 0 ? expense : income;
       const isPositive = income > expense;
-      totalHtml = `<span class="day-total ${isPositive ? "positive" : "negative"}">${isPositive ? "+" : "-"}${formatCompactKRW(amount)}</span>`;
+      totalHtml = `<span class="day-total ${isPositive ? "positive" : "negative"}">${isPositive ? "+" : "-"}${formatCompactAmount(amount, targetCurrency)}</span>`;
     }
 
     return `
@@ -172,7 +175,7 @@ export async function renderCalendarScreen(
     detailCard.innerHTML = `
       <div class="day-detail-header">
         <span class="day-detail-date">${formatDateKorean(selectedDate)}</span>
-        <span class="day-detail-total">지출 ${formatKRW(dayExpense)}</span>
+        <span class="day-detail-total">지출 ${formatByCurrency(dayExpense, targetCurrency)}</span>
       </div>
       ${
         dayRecords.length === 0
@@ -189,8 +192,8 @@ function dayTotals(records) {
   let income = 0;
   let expense = 0;
   records.forEach((e) => {
-    if ((e.type ?? "expense") === "income") income += e.krwAmount;
-    else expense += e.krwAmount;
+    if ((e.type ?? "expense") === "income") income += e.convertedAmount;
+    else expense += e.convertedAmount;
   });
   return { income, expense };
 }
@@ -204,7 +207,7 @@ function renderDayDetailItem(e) {
   const type = e.type ?? "expense";
   const sign = type === "income" ? "+" : "-";
   const originalAmountHtml =
-    e.inputCurrency !== "KRW"
+    e.inputCurrency !== e.convertedCurrency
       ? `<div class="original-amount">${formatByCurrency(e.amount, e.inputCurrency)}</div>`
       : "";
   const emoji = categoryEmoji(e.category);
@@ -216,7 +219,7 @@ function renderDayDetailItem(e) {
         ${e.memo ? `<div class="memo">${escapeHtml(e.memo)}</div>` : ""}
       </div>
       <div class="amounts ${type}">
-        <div class="krw">${sign}${formatKRW(e.krwAmount)}</div>
+        <div class="krw">${sign}${formatByCurrency(e.convertedAmount, e.convertedCurrency)}</div>
         ${originalAmountHtml}
       </div>
     </div>

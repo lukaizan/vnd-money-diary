@@ -2,9 +2,8 @@
 // 저장된 데이터를 "읽기만" 하고 어떤 것도 수정/삭제하지 않습니다.
 import { expenseRepository } from "./storage.js";
 import { categoryLabel } from "./categories.js";
+import { settingsStorage } from "./settingsStorage.js";
 import { todayISODate } from "./format.js";
-
-const CSV_HEADER = ["날짜", "카테고리", "통화", "원본금액", "원화환산금액", "구분", "메모"];
 
 function csvEscape(value) {
   const str = String(value ?? "");
@@ -14,18 +13,20 @@ function csvEscape(value) {
   return str;
 }
 
-function buildCsv(expenses) {
+function buildCsv(expenses, targetCurrency) {
+  const header = ["날짜", "카테고리", "통화", "원본금액", `환산금액(${targetCurrency})`, "구분", "메모"];
+
   const rows = expenses.map((e) => [
     e.date,
     categoryLabel(e.category),
     e.inputCurrency,
     e.amount,
-    Math.round(e.krwAmount),
+    Math.round(e.convertedAmount),
     e.type === "income" ? "수입" : "지출",
     e.memo ?? "",
   ]);
 
-  const lines = [CSV_HEADER, ...rows].map((row) => row.map(csvEscape).join(","));
+  const lines = [header, ...rows].map((row) => row.map(csvEscape).join(","));
 
   // 맨 앞에 BOM을 붙여서 엑셀/한글 프로그램에서 한글이 깨지지 않도록 함
   return "﻿" + lines.join("\r\n");
@@ -37,12 +38,13 @@ function buildCsv(expenses) {
 export async function exportExpensesAsCsv() {
   // getAll()은 목록/요약 화면에서 이미 쓰는 것과 동일한 읽기 전용 조회입니다.
   const expenses = await expenseRepository.getAll();
+  const settings = await settingsStorage.get();
   const sorted = [...expenses].sort((a, b) => {
     if (a.date !== b.date) return a.date < b.date ? -1 : 1;
     return a.createdAt - b.createdAt;
   });
 
-  const csv = buildCsv(sorted);
+  const csv = buildCsv(sorted, settings.targetCurrency);
   const filename = `vnd-money-diary-${todayISODate()}.csv`;
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
 

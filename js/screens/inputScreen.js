@@ -6,16 +6,14 @@ import {
   findCategory,
   EMOJI_CHOICES,
 } from "../lib/categories.js";
-import { CURRENCIES, currencySymbol } from "../lib/currencies.js";
+import { currencyMeta } from "../lib/currencies.js";
+import { settingsStorage, effectiveCurrencies } from "../lib/settingsStorage.js";
 import { expenseRepository } from "../lib/storage.js";
 import { getExchangeRate } from "../lib/exchangeRate.js";
-import { formatByCurrency, formatKRW, todayISODate } from "../lib/format.js";
+import { formatByCurrency, todayISODate } from "../lib/format.js";
 import { attachThousandsFormatting, formatThousands } from "../lib/numberInput.js";
 import { escapeHtml } from "../lib/html.js";
 import { attachLongPress } from "../lib/longPress.js";
-
-// 환율 조회가 필요한 통화만 대상 (KRW는 그대로 입력하므로 환율이 필요 없음)
-const RATE_BASED_CURRENCIES = CURRENCIES.map((c) => c.code).filter((code) => code !== "KRW");
 
 /**
  * @param {HTMLElement} container
@@ -29,16 +27,34 @@ const RATE_BASED_CURRENCIES = CURRENCIES.map((c) => c.code).filter((code) => cod
  *   initialDate는 새로 추가할 때(캘린더에서 날짜를 길게 눌러 들어온 경우 등) 날짜 칸의 기본값입니다.
  *   onSavedNew가 있으면, 새로 추가 저장한 뒤 폼을 초기화하고 계속 입력받는 대신 이 콜백을 호출합니다.
  */
-export function renderInputScreen(
+export async function renderInputScreen(
   container,
   { editingExpense = null, onDoneEditing = null, initialDate = null, onSavedNew = null } = {}
 ) {
+  container.innerHTML = `<div class="card"><p class="empty-state">불러오는 중...</p></div>`;
+
+  const settings = await settingsStorage.get();
+  const targetCurrency = settings.targetCurrency;
+
+  // 설정에서 고른 메인+서브+환산 화폐를 입력 화면 통화 목록으로 씀 (중복 제거).
+  // 수정 중인 내역의 통화가 지금은 설정에서 빠져 있더라도(그 사이에 서브 화폐를
+  // 뺐다거나) 그 내역을 정상적으로 수정할 수 있도록 목록에 포함시켜 둡니다.
+  let activeCurrencyCodes = effectiveCurrencies(settings);
+  if (editingExpense && !activeCurrencyCodes.includes(editingExpense.inputCurrency)) {
+    activeCurrencyCodes = [...activeCurrencyCodes, editingExpense.inputCurrency];
+  }
+  const activeCurrencies = activeCurrencyCodes.map(currencyMeta);
+  const targetSymbol = currencyMeta(targetCurrency).symbol;
+
+  // 환율 조회가 필요한 통화만 대상 (환산 화폐는 그대로 입력하므로 환율이 필요 없음)
+  const rateBasedCurrencies = activeCurrencyCodes.filter((code) => code !== targetCurrency);
+
   const isEditing = editingExpense !== null;
 
   let selectedType = editingExpense?.type ?? "expense"; // 앱을 처음 열었을 때 기본값
   let selectedCategory = editingExpense?.category ?? categoriesForType(selectedType)[0].id;
-  let selectedCurrency = editingExpense?.inputCurrency ?? "VND"; // 앱을 처음 열었을 때 기본값
-  const amountValues = Object.fromEntries(CURRENCIES.map((c) => [c.code, 0]));
+  let selectedCurrency = editingExpense?.inputCurrency ?? settings.mainCurrency; // 앱을 처음 열었을 때 기본값
+  const amountValues = Object.fromEntries(activeCurrencyCodes.map((code) => [code, 0]));
   if (isEditing) {
     amountValues[selectedCurrency] = editingExpense.amount;
   }
@@ -61,21 +77,25 @@ export function renderInputScreen(
         <label>결제 금액</label>
 
         <div class="segmented" id="currency-toggle">
-          ${CURRENCIES.map(
-            (c) =>
-              `<button type="button" class="segmented-btn${c.code === selectedCurrency ? " selected" : ""}" data-currency="${c.code}">${c.label}</button>`
-          ).join("")}
+          ${activeCurrencies
+            .map(
+              (c) =>
+                `<button type="button" class="segmented-btn${c.code === selectedCurrency ? " selected" : ""}" data-currency="${c.code}">${c.code}</button>`
+            )
+            .join("")}
         </div>
 
-        ${CURRENCIES.map(
-          (c) => `
+        ${activeCurrencies
+          .map(
+            (c) => `
           <div class="vnd-input-wrap" id="amount-field-${c.code}" ${c.code === selectedCurrency ? "" : "hidden"}>
             <input id="amount-input-${c.code}" type="text" inputmode="numeric" placeholder="0" autocomplete="off"
               value="${isEditing && c.code === selectedCurrency ? formatThousands(editingExpense.amount) : ""}" />
             <span>${c.symbol}</span>
           </div>
         `
-        ).join("")}
+          )
+          .join("")}
 
         <div class="krw-preview" id="krw-preview">
           환율 불러오는 중...
@@ -159,7 +179,7 @@ export function renderInputScreen(
   }
 
   function updatePreview() {
-    if (selectedCurrency === "KRW") {
+    if (selectedCurrency === targetCurrency) {
       krwPreview.hidden = true;
       return;
     }
@@ -174,20 +194,20 @@ export function renderInputScreen(
     }
 
     const amount = amountValues[selectedCurrency];
-    const krw = amount * rateInfo.rate;
-    const symbol = currencySymbol(selectedCurrency);
+    const converted = amount * rateInfo.rate;
+    const symbol = currencyMeta(selectedCurrency).symbol;
     const warningNote = rateInfo.error
       ? ` · ⚠️ 갱신 실패, 이전 값 사용`
       : "";
-    krwPreview.innerHTML = `≈ ${formatKRW(krw)}<span class="sub">1 ${symbol} = ${rateInfo.rate.toFixed(4)}원 · ${formatUpdatedAt(rateInfo.fetchedAt)} 기준${warningNote}</span>`;
+    krwPreview.innerHTML = `≈ ${formatByCurrency(converted, targetCurrency)}<span class="sub">1 ${symbol} = ${rateInfo.rate.toFixed(4)} ${targetSymbol} · ${formatUpdatedAt(rateInfo.fetchedAt)} 기준${warningNote}</span>`;
   }
 
   renderCategoryGrid();
 
-  CURRENCIES.forEach((c) => {
-    attachThousandsFormatting(amountInput(c.code), (val) => {
-      amountValues[c.code] = val;
-      if (c.code === selectedCurrency) updatePreview();
+  activeCurrencyCodes.forEach((code) => {
+    attachThousandsFormatting(amountInput(code), (val) => {
+      amountValues[code] = val;
+      if (code === selectedCurrency) updatePreview();
     });
   });
 
@@ -206,8 +226,8 @@ export function renderInputScreen(
     selectedCurrency = btn.dataset.currency;
 
     [...currencyToggle.children].forEach((c) => c.classList.toggle("selected", c === btn));
-    CURRENCIES.forEach((c) => {
-      amountField(c.code).hidden = c.code !== selectedCurrency;
+    activeCurrencyCodes.forEach((code) => {
+      amountField(code).hidden = code !== selectedCurrency;
     });
     updatePreview();
 
@@ -292,14 +312,15 @@ export function renderInputScreen(
     }
 
     let record;
-    if (selectedCurrency === "KRW") {
+    if (selectedCurrency === targetCurrency) {
       record = {
         type: selectedType,
         date: dateInput.value,
         category: selectedCategory,
-        inputCurrency: "KRW",
+        inputCurrency: targetCurrency,
         amount,
-        krwAmount: amount,
+        convertedAmount: amount,
+        convertedCurrency: targetCurrency,
         rate: null,
         memo: memoInput.value.trim(),
       };
@@ -313,7 +334,8 @@ export function renderInputScreen(
         category: selectedCategory,
         inputCurrency: selectedCurrency,
         amount,
-        krwAmount: amount * rateInfo.rate,
+        convertedAmount: amount * rateInfo.rate,
+        convertedCurrency: targetCurrency,
         rate: rateInfo.rate,
         memo: memoInput.value.trim(),
       };
@@ -339,16 +361,16 @@ export function renderInputScreen(
     form.reset();
     dateInput.value = todayISODate();
     renderCategoryGrid();
-    CURRENCIES.forEach((c) => {
-      amountValues[c.code] = 0;
+    activeCurrencyCodes.forEach((code) => {
+      amountValues[code] = 0;
     });
     updatePreview();
     saveBtn.disabled = false;
   });
 
   // 환율 불러오기 (캐시가 있으면 즉시, 없으면 API 호출). 통화별로 독립적으로 진행됩니다.
-  RATE_BASED_CURRENCIES.forEach((code) => {
-    getExchangeRate(code)
+  rateBasedCurrencies.forEach((code) => {
+    getExchangeRate(code, targetCurrency)
       .then((result) => {
         rates[code] = result;
         if (code === selectedCurrency) updatePreview();

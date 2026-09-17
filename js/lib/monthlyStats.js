@@ -1,7 +1,8 @@
 // 월별 수입/지출 합계 계산. 요약 화면과 캘린더 화면에서 공통으로 사용합니다.
 
-export function sumKrw(records) {
-  return records.reduce((sum, e) => sum + e.krwAmount, 0);
+/** 레코드들의 환산 금액(convertedAmount) 합계 (환산 화폐 기준) */
+export function sumConverted(records) {
+  return records.reduce((sum, e) => sum + e.convertedAmount, 0);
 }
 
 export function splitByType(records) {

@@ -1,6 +1,6 @@
 import { expenseRepository } from "../lib/storage.js";
 import { categoryLabel, categoryColor, categoryEmoji } from "../lib/categories.js";
-import { formatKRW, formatByCurrency, formatDateKorean } from "../lib/format.js";
+import { formatByCurrency, formatDateKorean } from "../lib/format.js";
 import { escapeHtml } from "../lib/html.js";
 import { attachLongPress } from "../lib/longPress.js";
 
@@ -22,9 +22,9 @@ export async function renderListScreen(container, { onEdit = null } = {}) {
   listCard.innerHTML = expenses
     .map((e) => {
       const type = e.type ?? "expense";
-      // KRW로 입력한 내역은 환산이 없으므로 원본 금액을 따로 보여줄 필요가 없음
+      // 입력 통화와 환산 통화가 같으면(환산 화폐로 직접 입력) 원본 금액을 따로 보여줄 필요가 없음
       const originalAmountHtml =
-        e.inputCurrency !== "KRW"
+        e.inputCurrency !== e.convertedCurrency
           ? `<div class="original-amount">${formatByCurrency(e.amount, e.inputCurrency)}</div>`
           : "";
       const sign = type === "income" ? "+" : "-";
@@ -38,7 +38,7 @@ export async function renderListScreen(container, { onEdit = null } = {}) {
           ${e.memo ? `<div class="memo">${escapeHtml(e.memo)}</div>` : ""}
         </div>
         <div class="amounts ${type}">
-          <div class="krw">${sign}${formatKRW(e.krwAmount)}</div>
+          <div class="krw">${sign}${formatByCurrency(e.convertedAmount, e.convertedCurrency)}</div>
           ${originalAmountHtml}
           <div class="item-actions">
             <button type="button" class="edit-btn" data-id="${e.id}">수정</button>

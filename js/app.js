@@ -2,8 +2,11 @@ import { renderCalendarScreen } from "./screens/calendarScreen.js";
 import { renderInputScreen } from "./screens/inputScreen.js";
 import { renderListScreen } from "./screens/listScreen.js";
 import { renderSummaryScreen } from "./screens/summaryScreen.js";
+import { renderSettingsScreen } from "./screens/settingsScreen.js";
 import { mountBottomNav } from "./components/bottomNav.js";
 import { getExchangeRate } from "./lib/exchangeRate.js";
+import { settingsStorage } from "./lib/settingsStorage.js";
+import { currencyMeta } from "./lib/currencies.js";
 
 const root = document.getElementById("screen-root");
 const nav = mountBottomNav(document.getElementById("bottom-nav"), (id) => showScreen(id));
@@ -41,6 +44,8 @@ function showScreen(id, params = {}) {
       onSavedNew: params.onSavedNew ?? null,
       onDoneEditing: params.onDoneEditing ?? (() => showScreen("list")),
     });
+  } else if (id === "settings") {
+    renderSettingsScreen(root);
   } else {
     renderSummaryScreen(root);
   }
@@ -50,14 +55,24 @@ function showScreen(id, params = {}) {
 
 showScreen("calendar");
 
-// 헤더에 현재 환율을 표시 (입력 화면과는 별개로, 앱 어디서든 보이도록)
+// 헤더에 메인 화폐 -> 환산 화폐 환율을 표시 (입력 화면과는 별개로, 앱 어디서든 보이도록)
 const rateIndicator = document.getElementById("rate-indicator");
 async function updateHeaderRate() {
   try {
-    const { rate, fromCache, error } = await getExchangeRate("VND");
+    const settings = await settingsStorage.get();
+    const { mainCurrency, targetCurrency } = settings;
+
+    if (mainCurrency === targetCurrency) {
+      rateIndicator.textContent = `메인 화폐 = 환산 화폐 (${targetCurrency})`;
+      return;
+    }
+
+    const mainSymbol = currencyMeta(mainCurrency).symbol;
+    const targetSymbol = currencyMeta(targetCurrency).symbol;
+    const { rate, fromCache, error } = await getExchangeRate(mainCurrency, targetCurrency);
     rateIndicator.textContent = error
       ? "환율 갱신 실패 (이전 값 사용 중)"
-      : `1 ₫ = ${rate.toFixed(4)}원${fromCache ? " (저장된 값)" : ""}`;
+      : `1 ${mainSymbol} = ${rate.toFixed(4)} ${targetSymbol}${fromCache ? " (저장된 값)" : ""}`;
   } catch {
     rateIndicator.textContent = "환율을 가져올 수 없어요";
   }
